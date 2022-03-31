@@ -253,6 +253,7 @@ class LexSubGenerationTask:
       raise ValueError('Invalid context ID')
     context = self.get_context(context_id)
     if context['context'][target['offset']:target['offset']+len(target['target'])].lower() != target['target'].lower():
+      print(context['context'])
       raise ValueError('Target not found at offset')
 
     self.__tid_to_target[tid] = target
