@@ -372,7 +372,6 @@ def pr_at_k(dataset_lists, result_lists, k, avg='macro', pct=True):
       d = set([s for s, _ in d])
       r = [s for s, _ in r]
       r = r[:k]
-
       numerator += sum([int(s in d) for s in r])
       p_denominator += len(r)
       r_denominator += min(len(d), k)
