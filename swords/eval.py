@@ -254,7 +254,13 @@ def _melamud_gap_scoring_script_wrapper(d, r, aggregate='total', allow_abstain=F
     assert len(d_subs) == len(set([s.lower() for s, _ in d_subs]))
     assert len(r_subs) == len(set([s.lower() for s, _ in r_subs]))
 
-    gaps.append(gap.GeneralizedAveragePrecision.calc(d_subs, r_subs))
+    if sum([x[1] for x in d_subs]) == 0:
+      print('-------')
+      print(d_sids)
+      print(tid)
+
+    score = gap.GeneralizedAveragePrecision.calc(d_subs, r_subs)
+    gaps.append(score)
 
   return np.mean(gaps)
 
@@ -272,6 +278,7 @@ def evaluate_gap(d, r, allow_abstain=False, pct=True):
   metrics = {'gap': None, 'gap_rat': None}
   multiplier = 100. if pct else 1.
   gap = _melamud_gap_scoring_script_wrapper(d, r, aggregate='total', allow_abstain=allow_abstain)
+  print(gap)
   assert gap >= 0 and gap <= 1
   metrics['gap'] = gap * multiplier
 
