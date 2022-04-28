@@ -96,6 +96,7 @@ def preprocess_result_for_evaluation(result, dataset, verbose=False):
   total = 0
 
   r = LexSubNoDuplicatesResult(substitutes_lemmatized=True)
+
   for tid in result.all_target_ids():
     substitutes = result.get_substitutes(tid)
     target = dataset.get_target(tid)
@@ -254,11 +255,6 @@ def _melamud_gap_scoring_script_wrapper(d, r, aggregate='total', allow_abstain=F
     assert len(d_subs) == len(set([s.lower() for s, _ in d_subs]))
     assert len(r_subs) == len(set([s.lower() for s, _ in r_subs]))
 
-    if sum([x[1] for x in d_subs]) == 0:
-      print('-------')
-      print(d_sids)
-      print(tid)
-
     score = gap.GeneralizedAveragePrecision.calc(d_subs, r_subs)
     gaps.append(score)
 
@@ -278,7 +274,7 @@ def evaluate_gap(d, r, allow_abstain=False, pct=True):
   metrics = {'gap': None, 'gap_rat': None}
   multiplier = 100. if pct else 1.
   gap = _melamud_gap_scoring_script_wrapper(d, r, aggregate='total', allow_abstain=allow_abstain)
-  print(gap)
+
   assert gap >= 0 and gap <= 1
   metrics['gap'] = gap * multiplier
 
@@ -321,6 +317,7 @@ def create_comparison_lists(d, r, allow_abstain=False, d_threshold=0.1):
     d_subs = sorted(d_subs, key=lambda x: -x[1])
     assert len(d_subs_raw) == len(set(d_subs_raw))
     d_subs_raw = set(d_subs_raw)
+
 
     # Aggregate system substitutes
     try:
@@ -408,7 +405,7 @@ def stats(datasets_lists, result_lists):
   }
 
 
-def evaluate(dataset, result, allow_abstain=False, skip_preprocessing=False, verbose=False):
+def evaluate(dataset, result, skip_preprocessing=False, verbose=False):
     # Preprocess
     if skip_preprocessing:
         d_pre = dataset
@@ -483,7 +480,6 @@ def main(argv):
   metrics = evaluate(
       dataset,
       result,
-      allow_abstain=args.allow_abstain,
       skip_preprocessing=args.skip_preprocessing,
       verbose=args.verbose)
 
