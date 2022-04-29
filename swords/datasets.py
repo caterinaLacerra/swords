@@ -1499,7 +1499,7 @@ def get_dataset(dataset, ignore_cache=False, verbose=False):
       _print('Failed to save to cache')
   elif os.path.exists(dataset):
     # Load from disk
-    _print('Loading from {dataset}')
+    _print(f'Loading from {dataset}')
     if dataset.endswith('.gz'):
       open_fn = gzip.open
     else:
