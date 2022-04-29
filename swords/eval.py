@@ -142,13 +142,11 @@ def _safe_divide(n, d):
   return result
 
 
-def _mccarthy_scoring_script_wrapper(d, r, mode, allow_abstain=True):
+def _mccarthy_scoring_script_wrapper(d, r, mode, scoring_script_path, allow_abstain=True):
   # TODO: support MW mode
   assert mode in ['best', 'oot']
-  scoring_script = file_from_bundle(ASSETS['semeval07']['fp'], 'scoring/score.pl').decode('utf-8')
-  with tempfile.NamedTemporaryFile('w') as script_f, tempfile.NamedTemporaryFile('w') as ref_f, tempfile.NamedTemporaryFile('w') as sys_f:
-    script_f.write(scoring_script)
-    script_f.seek(0)
+
+  with open(f"temp_ref_{mode}.txt", 'w') as ref_f, open(f"temp_sys_{mode}.txt", "w") as sys_f:
 
     # Create ref output
     ref_lines = []
@@ -182,16 +180,17 @@ def _mccarthy_scoring_script_wrapper(d, r, mode, allow_abstain=True):
       sys_lines.append(f'dummylemma.n {tid} {sep} {substitutes}')
     sys_f.write('\n'.join(sys_lines))
     sys_f.seek(0)
-
     cmd = 'perl {} {} {} -t {}'.format(
-        script_f.name, sys_f.name, ref_f.name, mode)
+        scoring_script_path, sys_f.name, ref_f.name, mode)
+    print(cmd)
+
     p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = [s.decode('utf-8').strip().splitlines() for s in p.communicate()]
 
     return stdout, stderr
 
 
-def evaluate_mccarthy(d, r, mode='oot', allow_abstain=False):
+def evaluate_mccarthy(d, r, scoring_script_path, mode='oot'):
   if not isinstance(d, LexSubDataset):
     raise ValueError()
   if not isinstance(r, LexSubNoDuplicatesResult):
@@ -202,7 +201,7 @@ def evaluate_mccarthy(d, r, mode='oot', allow_abstain=False):
     raise ValueError()
 
   # TODO: Should this be False? I believe it is True in original script
-  stdout, stderr = _mccarthy_scoring_script_wrapper(d, r, mode, allow_abstain=False)
+  stdout, stderr = _mccarthy_scoring_script_wrapper(d, r, mode, scoring_script_path=scoring_script_path, allow_abstain=False)
   result = {
       f'p': None,
       f'r': None,
@@ -402,7 +401,7 @@ def stats(datasets_lists, result_lists):
   }
 
 
-def evaluate(dataset, result, allow_abstain=False, skip_preprocessing=False, verbose=False):
+def evaluate(dataset, result, scoring_script_path, skip_preprocessing=False, verbose=False):
     # Preprocess
     if skip_preprocessing:
         d_pre = dataset
@@ -433,9 +432,12 @@ def evaluate(dataset, result, allow_abstain=False, skip_preprocessing=False, ver
         all_metrics.update(evaluate_gap(d_pre, r_pre))
 
     # Add legacy metrics
-    if os.path.exists(ASSETS['semeval07']['fp']):
-        all_metrics.update(evaluate_mccarthy(d_pre, r_pre, 'best'))
-        all_metrics.update(evaluate_mccarthy(d_pre, r_pre, 'oot'))
+    if os.path.exists(scoring_script_path):
+      all_metrics.update(evaluate_mccarthy(d_pre, r_pre, scoring_script_path=scoring_script_path, mode='best'))
+      all_metrics.update(evaluate_mccarthy(d_pre, r_pre, scoring_script_path=scoring_script_path, mode='oot'))
+
+    else:
+      print(f"{scoring_script_path} does not exist. Skipping legacy metrics evaluation.")
 
     return all_metrics
 
@@ -450,8 +452,9 @@ def main(argv):
   parser.add_argument('--output_metrics_json_fp', type=str)
   parser.add_argument('--allow_abstain', action='store_true', dest='allow_abstain')
   parser.add_argument('--skip_preprocessing', action='store_true', dest='skip_preprocessing')
-  parser.add_argument('--metrics', type=str)
+  parser.add_argument('--metrics', type=str, default="all")
   parser.add_argument('--quiet', action='store_false', dest='verbose')
+  parser.add_argument('--semeval_scorer', type=str, required=True)
 
   parser.set_defaults(
       result_json_fp=None,
@@ -477,9 +480,9 @@ def main(argv):
   metrics = evaluate(
       dataset,
       result,
-      allow_abstain=args.allow_abstain,
       skip_preprocessing=args.skip_preprocessing,
-      verbose=args.verbose)
+      verbose=args.verbose,
+      scoring_script_path=args.semeval_scorer)
 
   # Dump to file
   if args.output_metrics_json_fp is not None:
@@ -488,8 +491,12 @@ def main(argv):
 
   # Print
   metric_names = list(metrics.keys())
-  if args.metrics is not None and args.metrics.strip() != 'all':
-    allowed = [n.strip() for n in args.metrics.split(',') if len(n.strip()) > 0]
-    metric_names = [n for n in metric_names if any([n.startswith(a) for a in allowed])]
-  print(','.join(metric_names))
-  print(','.join(['e' if metrics[n] is None else '{:.2f}'.format(metrics[n]) for n in metric_names]))
+  summary_metrics = ["lenient_a_f@10", "lenient_c_f@10", "strict_a_f@10", "strict_c_f@10"]
+  for metric_name in metric_names:
+    if metric_name in summary_metrics:
+      print(f'{metric_name}: {metrics[metric_name]:.2f}')
+
+  best_f = 2 * (metrics["best_p"] * metrics["best_r"]) / (metrics["best_p"] + metrics["best_r"])
+  oot_f = 2 * (metrics["oot_p"] * metrics["oot_r"]) / (metrics["oot_p"] + metrics["oot_r"])
+  print(f'best_f: {best_f:.2f}')
+  print(f'oot_f: {oot_f:.2f}')
